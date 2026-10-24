@@ -1,12 +1,6 @@
-#
-# This pipeline needs the following tasks from Tekton Catalog
-#   - git-clone
-#   - flake8
-#
----
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
-metadata:  
+metadata:
   name: cd-pipeline
 spec:
   workspaces:
@@ -15,24 +9,49 @@ spec:
     - name: repo-url
     - name: branch
       default: main
+    - name: image
   tasks:
-    - name: init
+    - name: cleanup
+      taskRef: {name: cleanup}
       workspaces:
-        - name: source
-          workspace: pipeline-workspace          
-      taskRef:
-        name: cleanup
-
-    - name: clone
+        - {name: source, workspace: pipeline-workspace}
+    - name: git-clone
+      taskRef: {name: git-clone, kind: ClusterTask}
+      runAfter: [cleanup]
       workspaces:
-        - name: output
-          workspace: pipeline-workspace          
-      taskRef:
-        name: git-clone
+        - {name: output, workspace: pipeline-workspace}
       params:
-      - name: url
-        value: $(params.repo-url)
-      - name: revision
-        value: $(params.branch)
-      runAfter:
-        - init
+        - {name: url, value: $(params.repo-url)}
+        - {name: revision, value: $(params.branch)}
+    - name: lint
+      taskRef: {name: lint}
+      runAfter: [git-clone]
+      workspaces:
+        - {name: source, workspace: pipeline-workspace}
+    - name: tests
+      taskRef: {name: tests}
+      runAfter: [lint]
+      workspaces:
+        - {name: source, workspace: pipeline-workspace}
+    - name: build
+      taskRef: {name: buildah, kind: ClusterTask}
+      runAfter: [tests]
+      workspaces:
+        - {name: source, workspace: pipeline-workspace}
+      params:
+        - {name: IMAGE, value: $(params.image)}
+        - {name: TLSVERIFY, value: 'false'}
+        - {name: STORAGE_DRIVER, value: vfs}
+    - name: deploy
+      taskRef: {name: openshift-client, kind: ClusterTask}
+      runAfter: [build]
+      workspaces:
+        - {name: manifest-dir, workspace: pipeline-workspace}
+      params:
+        - name: SCRIPT
+          value: |
+            set -eu
+            oc apply -f k8s/accounts.yaml
+            oc set image deployment/accounts accounts=$(params.image)
+            oc rollout status deployment/accounts --timeout=180s
+            oc get deployments,pods,replicasets,services

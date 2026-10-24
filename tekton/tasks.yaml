@@ -30,9 +30,6 @@ spec:
         - name: WORKSPACE_SOURCE_PATH
           value: $(workspaces.source.path)
       workingDir: $(workspaces.source.path)
-      securityContext:
-        runAsNonRoot: false
-        runAsUser: 0
       script: |
         #!/usr/bin/env sh
         set -eu
@@ -49,4 +46,55 @@ spec:
           # Delete files and directories starting with .. plus any other character
           rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
         fi
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: lint
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: flake8
+      image: python:3.9-slim-bookworm
+      workingDir: $(workspaces.source.path)
+      resources:
+        requests: {cpu: 100m, memory: 128Mi}
+        limits: {cpu: 500m, memory: 512Mi}
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        python -m venv /tmp/lint-venv
+        /tmp/lint-venv/bin/pip install flake8==4.0.1
+        /tmp/lint-venv/bin/flake8 service tests --count --statistics
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: tests
+spec:
+  workspaces:
+    - name: source
+  steps:
+    - name: nosetests
+      image: python:3.9-slim-bookworm
+      workingDir: $(workspaces.source.path)
+      resources:
+        requests: {cpu: 100m, memory: 256Mi}
+        limits: {cpu: 500m, memory: 768Mi}
+      env:
+        - name: DATABASE_URI
+          valueFrom:
+            secretKeyRef:
+              name: accounts-test-database
+              key: DATABASE_URI
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        python -m venv /tmp/test-venv
+        . /tmp/test-venv/bin/activate
+        pip install --upgrade pip wheel
+        pip install setuptools==70.3.0
+        pip install -r requirements.txt
+        nosetests -v --with-coverage --cover-package=service --cover-min-percentage=95
 
