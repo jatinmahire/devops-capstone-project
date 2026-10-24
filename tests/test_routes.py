@@ -8,6 +8,7 @@ Test cases can be run with the following:
 import os
 import logging
 from unittest import TestCase
+from unittest.mock import patch
 from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
@@ -211,3 +212,19 @@ class TestAccountService(TestCase):
         response = self.client.patch(BASE_URL)
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(response.get_json()["status"], 405)
+
+    def test_database_failure_returns_json(self):
+        """It should return a structured 500 response after a database failure."""
+        with patch.object(Account, "all", side_effect=RuntimeError("Database unavailable")):
+            with patch.dict(app.config, {"PROPAGATE_EXCEPTIONS": False}):
+                response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.get_json()["error"], "Internal Server Error")
+
+    def test_create_without_optional_fields(self):
+        """It should default the date and permit an omitted phone number."""
+        payload = {"name": "New Customer", "email": "customer@example.com", "address": "123 Main Street"}
+        response = self.client.post(BASE_URL, json=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.get_json()["phone_number"])
+        self.assertTrue(response.get_json()["date_joined"])
