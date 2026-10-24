@@ -1,4 +1,21 @@
-# DevOps Capstone Template
+# DevOps Capstone Project: Customer Accounts Service
+
+[![CI Build](https://github.com/jatinmahire/devops-capstone-project/actions/workflows/ci-build.yaml/badge.svg)](https://github.com/jatinmahire/devops-capstone-project/actions/workflows/ci-build.yaml)
+
+A Flask and PostgreSQL REST API for creating, listing, reading, updating and deleting customer accounts. This capstone applies user stories and sprint planning, test-driven development, GitHub Actions CI, browser security headers, containerization, Kubernetes and Tekton delivery.
+
+| Method | Endpoint | Result |
+| --- | --- | --- |
+| POST | `/accounts` | Create an account, 201 and its Location |
+| GET | `/accounts` | List all accounts, 200 |
+| GET | `/accounts/{id}` | Read an account, 200 or 404 |
+| PUT | `/accounts/{id}` | Update an account, 200 or 404 |
+| DELETE | `/accounts/{id}` | Delete an account, 204 |
+| GET | `/health` | Health status, 200 |
+
+Run `nosetests -v` for database-backed tests and the 95% coverage gate. Run `flake8 service tests` for lint checks. Set `DATABASE_URI` to a PostgreSQL connection URL and use `gunicorn --bind 0.0.0.0:8080 service:app` to start the API. `CORS_ORIGINS` configures allowed browser origins; the public course API defaults to any origin without credentials. OpenShift terminates TLS at its edge route and Talisman adds security headers.
+
+The original IBM template instructions follow.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.9](https://img.shields.io/badge/Python-3.9-green.svg)](https://shields.io/)
